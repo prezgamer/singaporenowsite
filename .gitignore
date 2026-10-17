@@ -1,0 +1,8 @@
+target/
+.vscode/
+.idea/
+*.class
+.env
+.terraform/
+*.tfstate
+*.tfstate.*

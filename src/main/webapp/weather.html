@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Weather near me</title>
+</head>
+<body>
+    <h1>Weather near me</h1>
+
+    <button id="locate">Use my location</button>
+    <button id="demo">Try Geylang Serai</button>
+
+    <p>
+        Or enter coordinates:
+        <input id="lat" type="number" step="any" placeholder="Latitude" value="1.3167">
+        <input id="lng" type="number" step="any" placeholder="Longitude" value="103.8980">
+        <button id="manual">Check</button>
+    </p>
+
+    <p id="result">Click a button to get the 2-hour forecast for the nearest area.</p>
+
+    <p><a href="./">Back</a></p>
+
+    <script>
+        const result = document.getElementById("result");
+
+        async function showForecast(lat, lng) {
+            result.textContent = "Checking forecast...";
+            try {
+                const res = await fetch("weather?lat=" + lat + "&lng=" + lng);
+                const data = await res.json();
+
+                if (!res.ok) {
+                    result.textContent = data.error || "Request failed";
+                    return;
+                }
+                if (data.farAway) {
+                    result.textContent = "You seem to be outside Singapore (nearest forecast area is "
+                        + data.distanceKm + " km away).";
+                    return;
+                }
+                result.textContent = data.area + ": " + data.forecast
+                    + " (" + data.validPeriod + "), about " + data.distanceKm + " km from you";
+            } catch (e) {
+                result.textContent = "Could not reach the server: " + e.message;
+            }
+        }
+
+        document.getElementById("locate").addEventListener("click", () => {
+            if (!navigator.geolocation) {
+                result.textContent = "Your browser does not support location.";
+                return;
+            }
+            result.textContent = "Waiting for location permission...";
+            navigator.geolocation.getCurrentPosition(
+                pos => showForecast(pos.coords.latitude, pos.coords.longitude),
+                err => {
+                    result.textContent = "Could not get your location (" + err.message
+                        + "). Try the Geylang Serai button instead.";
+                },
+                { timeout: 10000 }
+            );
+        });
+
+        // Approximate coordinates of Geylang Serai, for testing without location permission
+        document.getElementById("demo").addEventListener("click", () => showForecast(1.3167, 103.8980));
+
+        document.getElementById("manual").addEventListener("click", () => {
+            const lat = document.getElementById("lat").value;
+            const lng = document.getElementById("lng").value;
+            if (lat === "" || lng === "") {
+                result.textContent = "Enter both latitude and longitude.";
+                return;
+            }
+            showForecast(lat, lng);
+        });
+    </script>
+</body>
+</html>
