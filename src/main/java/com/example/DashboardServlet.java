@@ -230,7 +230,6 @@ public class DashboardServlet extends HttpServlet {
         out.println(psiHtml);
         out.println(weatherHtml);
         out.println(hawkerHtml);
-        out.println("<p><a href=\"./\">Back</a></p>");
         out.println("</body></html>");
     }
 
