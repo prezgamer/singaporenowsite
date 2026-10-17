@@ -74,29 +74,96 @@ public class DashboardServlet extends HttpServlet {
             <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>Singapore dashboard</title>
+            <title>Singapore Now</title>
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
             <style>
-            body { font-family: system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 16px; line-height: 1.5; }
-            section { margin: 24px 0; padding-bottom: 8px; border-bottom: 1px solid #ddd; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
-            .big { font-size: 1.4em; margin: 0; }
-            .wx { display: flex; align-items: center; gap: 16px; }
-            .wx p { margin: 2px 0; }
-            .wx-icon { font-size: 3.5rem; line-height: 1; }
-            .muted { color: #666; }
-            .error { color: #b00020; }
-            #psi-map { height: 360px; border: 1px solid #ccc; margin: 8px 0; }
-            .psi-badge { width: 100%; height: 100%; box-sizing: border-box; padding-top: 3px; border: 2px solid #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); text-align: center; line-height: 1.15; }
+            :root {
+              color-scheme: light dark;
+              --bg: #f5f5f7; --text: #1d1d1f; --muted: #6e6e73; --accent: #0071e3;
+              --surface: rgba(255, 255, 255, 0.72); --solid: #ffffff; --hairline: rgba(0, 0, 0, 0.1);
+              --fill: rgba(120, 120, 128, 0.12); --error: #d70015;
+              --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 30px rgba(0, 0, 0, 0.06);
+            }
+            @media (prefers-color-scheme: dark) {
+              :root {
+                --bg: #000000; --text: #f5f5f7; --muted: #a1a1a6; --accent: #2997ff;
+                --surface: rgba(28, 28, 30, 0.72); --solid: #1c1c1e; --hairline: rgba(255, 255, 255, 0.14);
+                --fill: rgba(120, 120, 128, 0.32); --error: #ff453a;
+                --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 30px rgba(0, 0, 0, 0.4);
+              }
+            }
+            [hidden] { display: none !important; }
+            body { margin: 0 auto; max-width: 56rem; padding: 1.5rem 1rem 3rem; font: 100%/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--text);
+              background: radial-gradient(60rem 30rem at 10% -10%, rgba(0, 113, 227, 0.14), transparent 60%),
+                          radial-gradient(50rem 30rem at 100% 0%, rgba(175, 82, 222, 0.10), transparent 60%), var(--bg);
+              background-attachment: fixed; -webkit-font-smoothing: antialiased; }
+            h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.05; letter-spacing: -0.02em; font-weight: 700; margin: 0.5rem 0 0.25rem; }
+            h2 { font-size: 1.35rem; line-height: 1.2; letter-spacing: -0.01em; font-weight: 600; margin: 0 0 0.5rem; }
+            a { color: var(--accent); }
+            section { margin: 1.25rem 0; padding: 1.25rem; border-radius: 1.25rem; overflow-x: auto;
+              background: var(--surface); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+              border: 1px solid var(--hairline); box-shadow: var(--shadow); }
+            table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+            th, td { padding: 0.5rem 0.75rem 0.5rem 0; text-align: left; border-bottom: 1px solid var(--hairline); }
+            th { font-size: 0.8rem; font-weight: 500; color: var(--muted); }
+            tr:last-child td { border-bottom: 0; }
+            .big { font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.01em; font-weight: 600; margin: 0; }
+            .wx { display: flex; align-items: center; gap: 1rem; }
+            .wx p { margin: 0.125rem 0; }
+            .wx-icon { font-size: 4rem; line-height: 1; }
+            .muted { color: var(--muted); }
+            .error { color: var(--error); }
+            button { font: inherit; padding: 0.35rem 0.9rem; border: 0; border-radius: 999px; background: var(--fill); color: var(--text); cursor: pointer;
+              transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 200ms ease, box-shadow 200ms ease; }
+            button:active:not(:disabled) { transform: scale(0.97); transition-duration: 100ms; }
+            button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+            #locate { color: var(--accent); }
+            form, .switch { display: inline-flex; gap: 0.25rem; padding: 0.2rem; border-radius: 999px; background: var(--fill); margin: 0.25rem 0 0.5rem; }
+            form button, .switch button { background: transparent; color: var(--text); }
+            form button:disabled, .switch button[aria-pressed="true"] { background: var(--solid); color: var(--text); font-weight: 600; cursor: default;
+              box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+            #psi-map { height: 22rem; margin: 0.5rem 0; border-radius: 1rem; overflow: hidden; border: 1px solid var(--hairline); }
+            .psi-badge { width: 100%; height: 100%; box-sizing: border-box; padding-top: 3px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); text-align: center; line-height: 1.15; }
             .psi-badge b { font-size: 1.15rem; }
-            .switch { display: flex; gap: 8px; margin: 8px 0; }
-            .switch button { padding: 6px 14px; border: 1px solid #1565c0; background: #fff; color: #1565c0; border-radius: 6px; cursor: pointer; font: inherit; }
-            .switch button[aria-pressed="true"] { background: #1565c0; color: #fff; }
-            .legend { margin: 4px 0 12px; }
-            .legend span { display: inline-block; padding: 2px 8px; margin: 2px 4px 2px 0; border-radius: 4px; font-size: 0.85rem; }
-            details { margin: 8px 0; }
+            .legend { margin: 0.25rem 0 0.75rem; }
+            .legend span { margin: 0.15rem 0.25rem 0.15rem 0; }
+            .legend span, .chip { display: inline-block; padding: 0.1rem 0.65rem; border-radius: 999px; font-size: 0.8rem; font-weight: 500; white-space: nowrap; }
+            details { margin: 0.5rem 0; }
+            summary { cursor: pointer; color: var(--accent); }
+            /* Phones: tighter spacing, and every table turns into one card per row */
+            @media (max-width: 40rem) {
+              body { padding: 0.75rem 0.75rem 2rem; }
+              section { margin: 0.9rem 0; padding: 1rem; border-radius: 1rem; }
+              h2 { font-size: 1.2rem; }
+              .big { font-size: 1.25rem; }
+              .wx { gap: 0.75rem; }
+              .wx-icon { font-size: 3rem; }
+              #psi-map { height: 18rem; }
+              form, .switch { display: flex; width: 100%; box-sizing: border-box; }
+              form button, .switch button { flex: 1; padding: 0.45rem 0.4rem; font-size: 0.9rem; }
+              table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; }
+              table.stack tr:first-child { display: none; }
+              table.stack tr { padding: 0.65rem 0; border-bottom: 1px solid var(--hairline); }
+              table.stack tr:last-child { border-bottom: 0; }
+              table.stack td { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: 0.15rem 0; border: 0; text-align: right; }
+              table.stack td::before { color: var(--muted); font-size: 0.8rem; font-weight: 500; text-align: left; flex: none; }
+              table.stack td:first-child { justify-content: flex-start; text-align: left; font-weight: 600; font-size: 1.05rem; padding-bottom: 0.3rem; }
+              table.stack td:first-child::before { content: none; }
+              table.stack td:empty { display: none; }
+              .psi-table td:nth-child(2)::before { content: "PSI (24-hour)"; }
+              .psi-table td:nth-child(3)::before { content: "Level"; }
+              .psi-table td:nth-child(4)::before { content: "PM2.5, 1-hour (µg/m³)"; }
+              .psi-table td:nth-child(5)::before { content: "PM2.5 level"; }
+              .hawker-table td:nth-child(2)::before { content: "Address"; }
+              .hawker-table td:nth-child(3)::before { content: "Type"; }
+              .hawker-table td:nth-child(4)::before { content: "From"; }
+              .hawker-table td:nth-child(5)::before { content: "To"; }
+              .hawker-table td:nth-child(6)::before { content: "Remarks"; }
+            }
+            @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+            @media (prefers-reduced-transparency: reduce) { section { background: var(--solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+            @media (prefers-contrast: more) { :root { --hairline: rgba(128, 128, 128, 0.8); --muted: var(--text); } section { background: var(--solid); backdrop-filter: none; } }
             </style>
             </head>
             <body>
@@ -158,7 +225,7 @@ public class DashboardServlet extends HttpServlet {
         PrintWriter out = response.getWriter();
 
         out.print(HEAD);
-        out.println("<h1>Singapore today</h1>");
+        out.println("<h1>Singapore Now</h1>");
         out.println("<p class=\"muted\">" + DATE_OUT.format(today) + "</p>");
         out.println(psiHtml);
         out.println(weatherHtml);
@@ -374,18 +441,18 @@ public class DashboardServlet extends HttpServlet {
         JsonArray points = new JsonArray();
 
         StringBuilder table = new StringBuilder();
-        table.append("<table><tr><th>Region</th><th>PSI</th><th>Level</th>")
+        table.append("<table class=\"stack psi-table\"><tr><th>Region</th><th>PSI</th><th>Level</th>")
                 .append(pm25 == null ? "" : "<th>PM2.5, 1-hour (&micro;g/m&sup3;)</th><th>PM2.5 level</th>")
                 .append("</tr>");
         for (String region : PSI_REGIONS) {
             int value = values.get(region).getAsInt();
             Band band = band(value);
             table.append("<tr><td>").append(capitalize(region)).append("</td><td>")
-                    .append(value).append("</td><td>").append(band.label()).append("</td>");
+                    .append(value).append("</td><td>").append(chip(band)).append("</td>");
             Long pm = pm25 == null ? null : pm25.values().get(region);
             if (pm25 != null) {
                 table.append("<td>").append(pm == null ? "&ndash;" : pm.toString()).append("</td>")
-                        .append("<td>").append(pm == null ? "&ndash;" : pm25Band(pm).label()).append("</td>");
+                        .append("<td>").append(pm == null ? "&ndash;" : chip(pm25Band(pm))).append("</td>");
             }
             table.append("</tr>");
 
@@ -479,6 +546,12 @@ public class DashboardServlet extends HttpServlet {
 
     private static Band pm25Band(long pm25) {
         return bandFor(PM25_BANDS, pm25);
+    }
+
+    /** The level name as a coloured pill, using the same colours as the map and legend. */
+    private static String chip(Band b) {
+        return "<span class=\"chip\" style=\"background:" + b.background() + ";color:" + b.text() + "\">"
+                + b.label() + "</span>";
     }
 
     static String psiBand(int psi) {
@@ -580,7 +653,7 @@ public class DashboardServlet extends HttpServlet {
             return sb.toString();
         }
 
-        sb.append("<table><tr><th>Hawker centre</th><th>Address</th><th>Type</th>"
+        sb.append("<table class=\"stack hawker-table\"><tr><th>Hawker centre</th><th>Address</th><th>Type</th>"
                 + "<th>From</th><th>To</th><th>Remarks</th></tr>");
         for (HawkerServlet.Closure c : closures) {
             sb.append("<tr><td>").append(escape(c.name())).append("</td>")
