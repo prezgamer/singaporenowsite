@@ -1,21 +1,37 @@
 pipeline {
-    // Runs every stage inside a Maven + JDK 17 container, so Jenkins needs nothing but Docker.
-    agent {
-        docker {
-            image 'maven:3.9-eclipse-temurin-17'
-            args '-v $HOME/.m2:/root/.m2'
-        }
-    }
+    // No Docker and no Jenkins tool setup needed: Maven is downloaded once into
+    // JENKINS_HOME and reused. Jenkins itself only needs Java 17 or newer and curl.
+    agent any
 
     options {
-        timestamps()
-        timeout(time: 15, unit: 'MINUTES')
+        timeout(time: 20, unit: 'MINUTES')
+    }
+
+    environment {
+        MAVEN_VERSION = '3.9.9'
+        MAVEN_HOME    = "${JENKINS_HOME}/apache-maven-3.9.9"
     }
 
     stages {
+        stage('Set up Maven') {
+            steps {
+                sh '''
+                    java -version
+                    if [ ! -x "$MAVEN_HOME/bin/mvn" ]; then
+                        echo "Downloading Maven $MAVEN_VERSION ..."
+                        curl -fsSL -o /tmp/maven.tgz \
+                          "https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz"
+                        tar -xzf /tmp/maven.tgz -C "$JENKINS_HOME"
+                        rm -f /tmp/maven.tgz
+                    fi
+                    "$MAVEN_HOME/bin/mvn" -version
+                '''
+            }
+        }
+
         stage('Test') {
             steps {
-                sh 'mvn -B test'
+                sh '"$MAVEN_HOME/bin/mvn" -B test'
             }
             post {
                 always {
@@ -26,7 +42,7 @@ pipeline {
 
         stage('Package') {
             steps {
-                sh 'mvn -B package -DskipTests'
+                sh '"$MAVEN_HOME/bin/mvn" -B package -DskipTests'
             }
             post {
                 success {
