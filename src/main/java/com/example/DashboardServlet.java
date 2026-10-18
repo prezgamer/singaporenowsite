@@ -123,6 +123,12 @@ public class DashboardServlet extends HttpServlet {
             form button, .switch button { background: transparent; color: var(--text); }
             form button:disabled, .switch button[aria-pressed="true"] { background: var(--solid); color: var(--text); font-weight: 600; cursor: default;
               box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+            .psi-tools { display: flex; flex-wrap: wrap; align-items: center; column-gap: 0.6rem; }
+            #psi-locate { color: var(--accent); background: var(--fill); margin: 0.25rem 0 0.5rem; }
+            .here { margin: 0 0 0.5rem; padding: 0.6rem 0.9rem; border-radius: 0.9rem; background: var(--fill); line-height: 1.7; }
+            .here .chip { margin-left: 0.35rem; }
+            .psi-you { width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; background: #0a84ff; border: 2px solid #ffffff;
+              box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.3), 0 1px 4px rgba(0, 0, 0, 0.4); }
             #psi-map { height: 22rem; margin: 0.5rem 0; border-radius: 1rem; overflow: hidden; border: 1px solid var(--hairline); }
             .psi-badge { width: 100%; height: 100%; box-sizing: border-box; padding-top: 3px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 0.75rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); text-align: center; line-height: 1.15; }
             .psi-badge b { font-size: 1.15rem; }
@@ -140,6 +146,7 @@ public class DashboardServlet extends HttpServlet {
               .wx { gap: 0.75rem; }
               .wx-icon { font-size: 3rem; }
               #psi-map { height: 18rem; }
+              #psi-locate { flex: 1 1 100%; padding: 0.45rem 0.4rem; font-size: 0.9rem; background: var(--fill); }
               form, .switch { display: flex; width: 100%; box-sizing: border-box; }
               form button, .switch button { flex: 1; padding: 0.45rem 0.4rem; font-size: 0.9rem; }
               table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; }
@@ -341,12 +348,88 @@ public class DashboardServlet extends HttpServlet {
             (function () {
                 var el = document.getElementById("psi-map");
                 var bar = document.getElementById("mode-bar");
+                var map = null;
+                var youMarker = null;
+                var here = document.getElementById("psi-here");
+                var locateButton = document.getElementById("psi-locate");
+
+                // "Use my location": finds the nearest reading area and shows its PSI and PM2.5.
+                // Runs in the browser with the numbers already on the page, so it makes no extra API calls.
+                function say(text) { here.hidden = false; here.textContent = text; }
+                function line(label, value, unit, level, bg, fg) {
+                    var row = document.createElement("div");
+                    row.appendChild(document.createTextNode(label + " "));
+                    var strong = document.createElement("strong");
+                    strong.textContent = value;
+                    row.appendChild(strong);
+                    if (unit) { row.appendChild(document.createTextNode(" " + unit)); }
+                    var chip = document.createElement("span");
+                    chip.className = "chip";
+                    chip.style.background = bg;
+                    chip.style.color = fg;
+                    chip.textContent = level;
+                    row.appendChild(chip);
+                    return row;
+                }
+                function distanceKm(lat1, lng1, lat2, lng2) {
+                    var dy = (lat2 - lat1) * 110.57;
+                    var dx = (lng2 - lng1) * 111.32 * Math.cos(lat1 * Math.PI / 180);
+                    return Math.sqrt(dx * dx + dy * dy);
+                }
+                function showHere(lat, lng) {
+                    var best = null;
+                    var bestKm = Infinity;
+                    PSI_POINTS.forEach(function (p) {
+                        var d = distanceKm(lat, lng, p.lat, p.lng);
+                        if (d < bestKm) { bestKm = d; best = p; }
+                    });
+                    // rough box around Singapore, so Johor Bahru or Batam do not count as "nearest to North"
+                    var inSingapore = lat >= 1.15 && lat <= 1.48 && lng >= 103.6 && lng <= 104.1;
+                    if (!best || !inSingapore) {
+                        say("Your location seems to be outside Singapore.");
+                        return;
+                    }
+                    here.hidden = false;
+                    here.textContent = "";
+                    var title = document.createElement("div");
+                    title.className = "muted";
+                    title.textContent = "Nearest reading area: " + best.name;
+                    here.appendChild(title);
+                    here.appendChild(line("PSI", best.value, "", best.level, best.bg, best.fg));
+                    if (has(best.pm25)) {
+                        here.appendChild(line("PM2.5", best.pm25, "\u00b5g/m\u00b3", best.pm25Level, best.pm25Bg, best.pm25Fg));
+                    }
+                    if (map) {
+                        if (youMarker) { map.removeLayer(youMarker); }
+                        youMarker = L.marker([lat, lng], {
+                            icon: L.divIcon({ className: "", html: '<div class="psi-you"></div>', iconSize: [14, 14], iconAnchor: [7, 7] }),
+                            zIndexOffset: 1000,
+                            title: "You are here"
+                        }).addTo(map);
+                    }
+                }
+                function has(v) { return v !== undefined && v !== null; }
+                if (locateButton) {
+                    locateButton.addEventListener("click", function () {
+                        if (!navigator.geolocation) { say("Your browser does not support location."); return; }
+                        say("Finding your location...");
+                        locateButton.disabled = true;
+                        navigator.geolocation.getCurrentPosition(function (pos) {
+                            locateButton.disabled = false;
+                            showHere(pos.coords.latitude, pos.coords.longitude);
+                        }, function (err) {
+                            locateButton.disabled = false;
+                            say("Could not get your location (" + err.message + ").");
+                        }, { timeout: 10000 });
+                    });
+                }
+
                 if (typeof L === "undefined") {
                     el.textContent = "The map could not be loaded (check your internet connection).";
                     if (bar) { bar.hidden = true; }
                     return;
                 }
-                var map = L.map(el, { scrollWheelZoom: false });
+                map = L.map(el, { scrollWheelZoom: false });
                 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
                     maxZoom: 18,
                     attribution: "&copy; OpenStreetMap contributors"
@@ -354,7 +437,6 @@ public class DashboardServlet extends HttpServlet {
 
                 var markers = L.layerGroup().addTo(map);
                 var bounds = PSI_POINTS.map(function (p) { return [p.lat, p.lng]; });
-                function has(v) { return v !== undefined && v !== null; }
 
                 function draw(mode) {
                     markers.clearLayers();
@@ -491,12 +573,15 @@ public class DashboardServlet extends HttpServlet {
         if (points.isEmpty()) {
             sb.append(table); // no coordinates in the response: just show the table
         } else {
+            sb.append("<div class=\"psi-tools\">");
             if (pm25 != null) {
                 sb.append("<div id=\"mode-bar\" class=\"switch\">"
                         + "<button type=\"button\" id=\"mode-psi\" aria-pressed=\"true\">PSI (24-hour)</button>"
                         + "<button type=\"button\" id=\"mode-pm25\" aria-pressed=\"false\">PM2.5 (1-hour)</button>"
                         + "</div>");
             }
+            sb.append("<button type=\"button\" id=\"psi-locate\">Use my location</button></div>");
+            sb.append("<div id=\"psi-here\" class=\"here\" aria-live=\"polite\" hidden></div>");
             sb.append("<div id=\"psi-map\"></div>").append(legend("legend-psi", PSI_BANDS, false, ""));
             if (pm25 != null) {
                 sb.append(legend("legend-pm25", PM25_BANDS, true, "&micro;g/m&sup3;, 1-hour"));
