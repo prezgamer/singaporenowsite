@@ -65,6 +65,17 @@
                 <artifactId>cargo-maven3-plugin</artifactId>
                 <version>1.10.14</version>
                 <configuration>
+                    <!-- Serve the app at / (so http://localhost:8080/ opens it), like the Docker image does -->
+                    <deployables>
+                        <deployable>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>${project.artifactId}</artifactId>
+                            <type>war</type>
+                            <properties>
+                                <context>/</context>
+                            </properties>
+                        </deployable>
+                    </deployables>
                     <container>
                         <containerId>tomcat10x</containerId>
                         <artifactInstaller>
